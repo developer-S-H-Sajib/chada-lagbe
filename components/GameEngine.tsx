@@ -14,7 +14,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
   const gameLoopRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number>(Date.now());
   const playerImgRef = useRef<HTMLImageElement | null>(null);
-  
+
   // Player state
   const playerRef = useRef({
     x: window.innerWidth / 2,
@@ -60,11 +60,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'ArrowLeft' || e.key === 'a') {
-            playerRef.current.targetX -= 50;
-        } else if (e.key === 'ArrowRight' || e.key === 'd') {
-            playerRef.current.targetX += 50;
-        }
+      if (e.key === 'ArrowLeft' || e.key === 'a') {
+        playerRef.current.targetX -= 50;
+      } else if (e.key === 'ArrowRight' || e.key === 'd') {
+        playerRef.current.targetX += 50;
+      }
     };
 
     canvas.addEventListener('mousemove', handleInput);
@@ -75,13 +75,13 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
     const update = () => {
       const now = Date.now();
       const elapsed = (now - startTimeRef.current) / 1000;
-      
+
       // Move player towards target
       playerRef.current.x += (playerRef.current.targetX - playerRef.current.x) * 0.15;
       playerRef.current.scale += (1 - playerRef.current.scale) * 0.1;
 
       // Keep player within bounds
-      playerRef.current.x = Math.max(playerRef.current.size/2, Math.min(canvas.width - playerRef.current.size/2, playerRef.current.x));
+      playerRef.current.x = Math.max(playerRef.current.size / 2, Math.min(canvas.width - playerRef.current.size / 2, playerRef.current.x));
 
       setScore(Math.floor(elapsed * 10));
 
@@ -142,19 +142,19 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
       ctx.strokeStyle = 'rgba(209, 32, 83, 0.08)';
       ctx.lineWidth = 1;
       const gridSize = 60;
-      for(let i=0; i<canvas.width; i+=gridSize) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
-      for(let i=0; i<canvas.height; i+=gridSize) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
+      for (let i = 0; i < canvas.width; i += gridSize) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
+      for (let i = 0; i < canvas.height; i += gridSize) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
 
       // Draw Player Avatar
       ctx.save();
       const shakeX = Math.sin(Date.now() / 30) * 2;
       ctx.translate(playerRef.current.x + shakeX, playerRef.current.y);
       ctx.scale(playerRef.current.scale, 2 - playerRef.current.scale);
-      
+
       // Avatar Shadow
       ctx.shadowBlur = 15;
       ctx.shadowColor = 'rgba(209, 32, 83, 0.4)';
-      
+
       // Circular clip for profile picture
       ctx.beginPath();
       ctx.arc(0, 0, playerRef.current.size / 2, 0, Math.PI * 2);
@@ -162,18 +162,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
       ctx.strokeStyle = '#D12053';
       ctx.stroke();
       ctx.clip();
-      
+
       if (playerImgRef.current) {
         ctx.drawImage(
-          playerImgRef.current, 
-          -playerRef.current.size/2, 
-          -playerRef.current.size/2, 
-          playerRef.current.size, 
+          playerImgRef.current,
+          -playerRef.current.size / 2,
+          -playerRef.current.size / 2,
+          playerRef.current.size,
           playerRef.current.size
         );
       } else {
         ctx.fillStyle = '#D12053';
-        ctx.fillRect(-playerRef.current.size/2, -playerRef.current.size/2, playerRef.current.size, playerRef.current.size);
+        ctx.fillRect(-playerRef.current.size / 2, -playerRef.current.size / 2, playerRef.current.size, playerRef.current.size);
         ctx.fillStyle = '#fff';
         ctx.font = '24px Arial';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -204,7 +204,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
       ctx.font = 'bold 32px "Hind Siliguri"';
       ctx.textAlign = 'center';
       ctx.fillText(`স্কোর: ${Math.floor((Date.now() - startTimeRef.current) / 100)}`, canvas.width / 2, 80);
-      
+
       const difficulty = Math.min(100, Math.floor(((Date.now() - startTimeRef.current) / 1000) * 2));
       ctx.font = '12px "Hind Siliguri"';
       ctx.fillText(`লেভেল: ${difficulty}%`, canvas.width / 2, 110);
@@ -228,10 +228,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
   return (
     <div ref={containerRef} className="fixed inset-0 w-screen h-screen bg-sky-50 overflow-hidden select-none">
       <canvas ref={canvasRef} className="w-full h-full block cursor-none" />
-      
+
       {/* IMPROVED MOBILE CONTROLS - Full side buttons */}
       <div className="absolute inset-0 flex md:hidden pointer-events-none">
-        <div 
+        <div
           className="flex-1 h-full pointer-events-auto active:bg-pink-500/10 transition-colors flex items-end justify-center pb-20"
           onMouseDown={moveLeft}
           onTouchStart={(e) => { e.preventDefault(); moveLeft(); }}
@@ -240,7 +240,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
             <ChevronLeft size={40} strokeWidth={4} />
           </div>
         </div>
-        <div 
+        <div
           className="flex-1 h-full pointer-events-auto active:bg-pink-500/10 transition-colors flex items-end justify-center pb-20"
           onMouseDown={moveRight}
           onTouchStart={(e) => { e.preventDefault(); moveRight(); }}
@@ -253,7 +253,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
 
       <div className="absolute top-24 w-full text-center pointer-events-none">
         <div className="inline-block bg-white/90 px-6 py-2 rounded-full shadow-lg text-sm font-black text-pink-600 animate-bounce border-2 border-pink-100">
-           চাঁদাখোর আসতেছে! পালাও! 🏃‍♂️💨
+          চাঁদাখোর আসতেছে! পালাও! 🏃‍♂️💨
         </div>
       </div>
     </div>

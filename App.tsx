@@ -55,13 +55,13 @@ const App: React.FC = () => {
   };
 
   const goToPayment = () => setCurrentState(GameState.PAYMENT);
-  
+
   const handlePaymentSuccess = (amount: number) => {
     setPlayerData(prev => ({ ...prev, chandaAmount: amount }));
     setCurrentState(GameState.RECEIPT);
     // Optional success sound
     const audio = new Audio('https://www.myinstants.com/media/sounds/cha-ching.mp3');
-    audio.play().catch(() => {});
+    audio.play().catch(() => { });
   };
 
   const resetGame = () => {
@@ -82,35 +82,35 @@ const App: React.FC = () => {
 
       <main className={`flex-grow w-full flex items-center justify-center relative ${currentState === GameState.PLAYING ? 'fixed inset-0 z-50 bg-white h-screen w-screen' : 'max-w-md mx-auto p-4'}`}>
         {currentState === GameState.START && (
-          <StartScreen 
-            onStart={startGame} 
-            initialName={playerData.name} 
-            initialPhoto={playerData.photoUrl} 
+          <StartScreen
+            onStart={startGame}
+            initialName={playerData.name}
+            initialPhoto={playerData.photoUrl}
           />
         )}
-        
+
         {currentState === GameState.PLAYING && (
           <GameEngine onGameOver={endGame} playerPhoto={playerData.photoUrl} />
         )}
 
         {currentState === GameState.GAMEOVER && (
-          <GameOverScreen 
-            playerData={playerData} 
-            onPay={goToPayment} 
+          <GameOverScreen
+            playerData={playerData}
+            onPay={goToPayment}
             onRestart={resetGame}
           />
         )}
 
         {currentState === GameState.PAYMENT && (
-          <PaymentModal 
-            onSuccess={handlePaymentSuccess} 
+          <PaymentModal
+            onSuccess={handlePaymentSuccess}
             onCancel={() => setCurrentState(GameState.GAMEOVER)}
           />
         )}
 
         {currentState === GameState.RECEIPT && (
-          <ReceiptView 
-            playerData={playerData} 
+          <ReceiptView
+            playerData={playerData}
             onDone={resetGame}
           />
         )}

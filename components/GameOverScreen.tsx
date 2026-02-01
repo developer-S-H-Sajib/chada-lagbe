@@ -2,6 +2,7 @@
 import React from 'react';
 import { PlayerData } from '../types';
 import { CreditCard, Share2, Facebook, RefreshCcw } from 'lucide-react';
+import funnySound from './public/Funny sonud 2.mp3';
 
 interface GameOverScreenProps {
   playerData: PlayerData;
@@ -10,6 +11,11 @@ interface GameOverScreenProps {
 }
 
 const GameOverScreen: React.FC<GameOverScreenProps> = ({ playerData, onPay, onRestart }) => {
+  React.useEffect(() => {
+    const audio = new Audio(funnySound);
+    audio.play().catch(e => console.error("Error playing sound:", e));
+  }, []);
+
   const shareGame = () => {
     const text = `আমি চাঁদা লাগবে গেমে ${playerData.score} স্কোর করে ধরা খেয়েছি 😂 এখন তোমার পালা!`;
     const url = window.location.href;
@@ -52,7 +58,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ playerData, onPay, onRe
           <p className="text-xl font-bold text-gray-800">গেম শেষ ভাই!</p>
           <p className="text-lg font-black text-pink-600">চাঁদা দিয়ে বিদায় হও অথবা আবার খেলো 😂</p>
         </div>
-        
+
         <div className="mt-4 px-10 py-3 bg-gray-50 border-2 border-blue-200 rounded-2xl shadow-sm inline-block min-w-[200px]">
           <span className="text-gray-400 font-black text-lg">স্কোর: {playerData.score} পয়েন্ট</span>
         </div>
@@ -76,14 +82,14 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ playerData, onPay, onRe
         </button>
 
         <div className="grid grid-cols-2 gap-3 w-full">
-          <button 
-            onClick={shareOnFacebook} 
+          <button
+            onClick={shareOnFacebook}
             className="flex items-center justify-center gap-2 py-3 bg-[#1877F2] hover:bg-[#166fe5] rounded-xl text-xs font-black text-white shadow-lg active:scale-95 transition-all"
           >
             <Facebook size={16} fill="white" /> ফেসবুক শেয়ার
           </button>
-          <button 
-            onClick={shareGame} 
+          <button
+            onClick={shareGame}
             className="flex items-center justify-center gap-2 py-3 bg-blue-500 hover:bg-blue-600 rounded-xl text-xs font-black text-white shadow-lg active:scale-95 transition-all"
           >
             <Share2 size={16} /> অন্যান্য শেয়ার
