@@ -253,7 +253,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
 
       <div className="absolute top-24 w-full text-center pointer-events-none">
         <div className="inline-block bg-white/90 px-6 py-2 rounded-full shadow-lg text-sm font-black text-pink-600 animate-bounce border-2 border-pink-100">
-          চাঁদাখোর আসতেছে! পালাও! 🏃‍♂️💨
+          চাঁদা দিবো না ! 🏃‍♂️💨
         </div>
       </div>
     </div>
