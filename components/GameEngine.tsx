@@ -1,6 +1,5 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface GameEngineProps {
   onGameOver: (score: number) => void;
@@ -9,33 +8,43 @@ interface GameEngineProps {
 
 const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
-  const gameLoopRef = useRef<number | undefined>(undefined);
-  const startTimeRef = useRef<number>(Date.now());
   const playerImgRef = useRef<HTMLImageElement | null>(null);
 
-  // Player state
-  const playerRef = useRef({
-    x: window.innerWidth / 2,
-    y: window.innerHeight - 150,
-    size: 55, // 40-50px range
-    targetX: window.innerWidth / 2,
-    scale: 1,
-    speed: 8
+  // Physics Config
+  const GRAVITY = 0.4;
+  const JUMP_STRENGTH = -7.5;
+  const PIPE_SPEED = 3.2;
+  const PIPE_SPAWN_RATE = 110; // frames
+  const PIPE_WIDTH = 70;
+  const PIPE_GAP = 190;
+
+  // Game State Refs
+  const birdRef = useRef({
+    y: 300,
+    vy: 0,
+    radius: 24,
+    rotation: 0,
+    x: 0 // Will be set in resize
   });
 
-  // Obstacles
-  const obstaclesRef = useRef<any[]>([]);
+  const pipesRef = useRef<{ x: number; top: number; passed: boolean }[]>([]);
+  const frameCount = useRef(0);
+  const soundsRef = useRef<{ flap: HTMLAudioElement; point: HTMLAudioElement; crash: HTMLAudioElement } | null>(null);
 
-  // Pre-load player image
   useEffect(() => {
+    // Preload sounds
+    soundsRef.current = {
+      flap: new Audio('https://www.myinstants.com/media/sounds/flap_flap.mp3'),
+      point: new Audio('https://www.myinstants.com/media/sounds/mario-coin.mp3'),
+      crash: new Audio('https://www.myinstants.com/media/sounds/funny-fail-sound-effect.mp3')
+    };
+
     if (playerPhoto) {
       const img = new Image();
       img.src = playerPhoto;
-      img.onload = () => {
-        playerImgRef.current = img;
-      };
+      img.onload = () => { playerImgRef.current = img; };
     }
   }, [playerPhoto]);
 
@@ -48,86 +57,91 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      playerRef.current.y = canvas.height - 150;
+      birdRef.current.y = canvas.height / 2;
+      birdRef.current.x = canvas.width / 4;
     };
     resize();
     window.addEventListener('resize', resize);
 
-    const handleInput = (e: MouseEvent | TouchEvent) => {
-      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-      playerRef.current.targetX = clientX;
-      playerRef.current.scale = 0.9;
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'a') {
-        playerRef.current.targetX -= 50;
-      } else if (e.key === 'ArrowRight' || e.key === 'd') {
-        playerRef.current.targetX += 50;
+    const jump = () => {
+      birdRef.current.vy = JUMP_STRENGTH;
+      if (soundsRef.current) {
+        soundsRef.current.flap.currentTime = 0;
+        soundsRef.current.flap.play().catch(() => { });
       }
     };
 
-    canvas.addEventListener('mousemove', handleInput);
-    canvas.addEventListener('touchstart', handleInput);
-    canvas.addEventListener('touchmove', handleInput);
-    window.addEventListener('keydown', handleKeyDown);
+    const handleInput = (e: any) => {
+      if (e.type === 'keydown') {
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+          e.preventDefault();
+          jump();
+        }
+      } else {
+        jump();
+      }
+    };
+
+    window.addEventListener('keydown', handleInput);
+    window.addEventListener('mousedown', handleInput);
+    window.addEventListener('touchstart', handleInput, { passive: false });
 
     const update = () => {
-      const now = Date.now();
-      const elapsed = (now - startTimeRef.current) / 1000;
+      frameCount.current++;
+      const bird = birdRef.current;
 
-      // Move player towards target
-      playerRef.current.x += (playerRef.current.targetX - playerRef.current.x) * 0.15;
-      playerRef.current.scale += (1 - playerRef.current.scale) * 0.1;
+      // Bird Physics
+      bird.vy += GRAVITY;
+      bird.y += bird.vy;
+      bird.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.vy * 0.1));
 
-      // Keep player within bounds
-      playerRef.current.x = Math.max(playerRef.current.size / 2, Math.min(canvas.width - playerRef.current.size / 2, playerRef.current.x));
-
-      setScore(Math.floor(elapsed * 10));
-
-      // PROGRESSIVE DIFFICULTY LOGIC
-      // Spawn rate increases over time
-      const baseSpawnChance = 0.04;
-      const difficultyFactor = elapsed * 0.003;
-      const finalSpawnChance = Math.min(baseSpawnChance + difficultyFactor, 0.25);
-
-      // Obstacle speed increases over time
-      const baseObstacleSpeed = 4;
-      const speedDifficultyFactor = elapsed * 0.15;
-      const currentObstacleSpeed = baseObstacleSpeed + speedDifficultyFactor;
-
-      if (Math.random() < finalSpawnChance) {
-        obstaclesRef.current.push({
-          x: Math.random() * canvas.width,
-          y: -100,
-          speed: currentObstacleSpeed * (0.8 + Math.random() * 0.4),
-          size: 50 + Math.random() * 40,
-          text: Math.random() > 0.5 ? 'চাঁদা দাও!' : 'টাকা দে!',
-          type: Math.random() > 0.7 ? 'money' : 'text',
-          rot: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 0.1
-        });
+      // Floor/Ceiling Collision
+      if (bird.y + bird.radius > canvas.height || bird.y - bird.radius < 0) {
+        handleGameOver();
+        return;
       }
 
-      // Update obstacles
-      for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
-        const obs = obstaclesRef.current[i];
-        obs.y += obs.speed;
-        obs.rot += obs.rotSpeed;
+      // Pipe Management
+      if (frameCount.current % PIPE_SPAWN_RATE === 0) {
+        const minHeight = 60;
+        const maxHeight = canvas.height - PIPE_GAP - minHeight;
+        const top = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+        pipesRef.current.push({ x: canvas.width, top, passed: false });
+      }
 
-        // Collision Check (tight circle)
-        const dx = playerRef.current.x - obs.x;
-        const dy = playerRef.current.y - obs.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+      for (let i = pipesRef.current.length - 1; i >= 0; i--) {
+        const p = pipesRef.current[i];
+        p.x -= PIPE_SPEED;
 
-        if (distance < (playerRef.current.size / 2 + obs.size / 3)) {
-          onGameOver(Math.floor(elapsed * 10));
-          if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+        // Scoring
+        if (!p.passed && p.x + PIPE_WIDTH < bird.x) {
+          p.passed = true;
+          setScore(s => s + 1);
+          soundsRef.current?.point.play().catch(() => { });
+        }
+
+        // Collision detection (Circle-Rect)
+        const birdX = bird.x;
+        const birdY = bird.y;
+
+        // Rect 1 (Top Pipe)
+        const inTopRect = birdX + bird.radius > p.x &&
+          birdX - bird.radius < p.x + PIPE_WIDTH &&
+          birdY - bird.radius < p.top;
+
+        // Rect 2 (Bottom Pipe)
+        const inBottomRect = birdX + bird.radius > p.x &&
+          birdX - bird.radius < p.x + PIPE_WIDTH &&
+          birdY + bird.radius > p.top + PIPE_GAP;
+
+        if (inTopRect || inBottomRect) {
+          handleGameOver();
           return;
         }
 
-        if (obs.y > canvas.height + 150) {
-          obstaclesRef.current.splice(i, 1);
+        // Cleanup
+        if (p.x + PIPE_WIDTH < -100) {
+          pipesRef.current.splice(i, 1);
         }
       }
 
@@ -136,124 +150,103 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
     };
 
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const bird = birdRef.current;
 
-      // Simple grid background
-      ctx.strokeStyle = 'rgba(209, 32, 83, 0.08)';
-      ctx.lineWidth = 1;
-      const gridSize = 60;
-      for (let i = 0; i < canvas.width; i += gridSize) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke(); }
-      for (let i = 0; i < canvas.height; i += gridSize) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke(); }
+      // Clear Screen
+      ctx.fillStyle = '#bae6fd'; // Sky Blue
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw Player Avatar
+      // Clouds
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      const drawCloud = (x: number, y: number, s: number) => {
+        ctx.beginPath();
+        ctx.arc(x, y, 30 * s, 0, Math.PI * 2);
+        ctx.arc(x + 40 * s, y, 40 * s, 0, Math.PI * 2);
+        ctx.arc(x + 80 * s, y, 30 * s, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      drawCloud(100, 150, 1);
+      drawCloud(canvas.width - 250, 100, 1.2);
+      drawCloud(canvas.width / 2, 250, 0.8);
+
+      // Pipes
+      pipesRef.current.forEach(p => {
+        ctx.fillStyle = '#D12053'; // bKash Pink
+
+        // Top Pipe
+        ctx.fillRect(p.x, 0, PIPE_WIDTH, p.top);
+        // Bottom Pipe
+        ctx.fillRect(p.x, p.top + PIPE_GAP, PIPE_WIDTH, canvas.height - (p.top + PIPE_GAP));
+
+        // Pipe Caps
+        ctx.fillStyle = '#b01b46';
+        ctx.fillRect(p.x - 5, p.top - 20, PIPE_WIDTH + 10, 20);
+        ctx.fillRect(p.x - 5, p.top + PIPE_GAP, PIPE_WIDTH + 10, 20);
+
+        // Label on pipes
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px "Hind Siliguri"';
+        ctx.textAlign = 'center';
+        ctx.fillText('চাঁদা দে!', p.x + PIPE_WIDTH / 2, p.top - 35);
+        ctx.fillText('রাস্তা বন্ধ', p.x + PIPE_WIDTH / 2, p.top + PIPE_GAP + 50);
+      });
+
+      // Bird
       ctx.save();
-      const shakeX = Math.sin(Date.now() / 30) * 2;
-      ctx.translate(playerRef.current.x + shakeX, playerRef.current.y);
-      ctx.scale(playerRef.current.scale, 2 - playerRef.current.scale);
+      ctx.translate(bird.x, bird.y);
+      ctx.rotate(bird.rotation);
 
-      // Avatar Shadow
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = 'rgba(209, 32, 83, 0.4)';
-
-      // Circular clip for profile picture
       ctx.beginPath();
-      ctx.arc(0, 0, playerRef.current.size / 2, 0, Math.PI * 2);
+      ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
       ctx.lineWidth = 4;
       ctx.strokeStyle = '#D12053';
       ctx.stroke();
       ctx.clip();
 
       if (playerImgRef.current) {
-        ctx.drawImage(
-          playerImgRef.current,
-          -playerRef.current.size / 2,
-          -playerRef.current.size / 2,
-          playerRef.current.size,
-          playerRef.current.size
-        );
+        ctx.drawImage(playerImgRef.current, -bird.radius, -bird.radius, bird.radius * 2, bird.radius * 2);
       } else {
         ctx.fillStyle = '#D12053';
-        ctx.fillRect(-playerRef.current.size / 2, -playerRef.current.size / 2, playerRef.current.size, playerRef.current.size);
-        ctx.fillStyle = '#fff';
-        ctx.font = '24px Arial';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('🏃', 0, 0);
+        ctx.fillRect(-bird.radius, -bird.radius, bird.radius * 2, bird.radius * 2);
       }
       ctx.restore();
 
-      // Draw Obstacles
-      obstaclesRef.current.forEach(obs => {
-        ctx.save();
-        ctx.translate(obs.x, obs.y);
-        ctx.rotate(obs.rot);
-        if (obs.type === 'money') {
-          ctx.font = `${obs.size}px Arial`;
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('💰', 0, 0);
-        } else {
-          ctx.fillStyle = '#D12053';
-          ctx.font = `bold ${obs.size / 2}px "Hind Siliguri"`;
-          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText(obs.text, 0, 0);
-        }
-        ctx.restore();
-      });
-
-      // UI Overlay
-      ctx.fillStyle = '#D12053';
-      ctx.font = 'bold 32px "Hind Siliguri"';
+      // UI Score (Large and bold)
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'black 80px "Hind Siliguri"';
       ctx.textAlign = 'center';
-      ctx.fillText(`স্কোর: ${Math.floor((Date.now() - startTimeRef.current) / 100)}`, canvas.width / 2, 80);
-
-      const difficulty = Math.min(100, Math.floor(((Date.now() - startTimeRef.current) / 1000) * 2));
-      ctx.font = '12px "Hind Siliguri"';
-      ctx.fillText(`লেভেল: ${difficulty}%`, canvas.width / 2, 110);
+      ctx.shadowColor = 'rgba(0,0,0,0.1)';
+      ctx.shadowBlur = 10;
+      ctx.fillText(score.toLocaleString('bn-BD'), canvas.width / 2, 140);
+      ctx.shadowBlur = 0;
     };
 
-    update();
+    const handleGameOver = () => {
+      cancelAnimationFrame(gameLoopRef.current);
+      if (soundsRef.current) {
+        soundsRef.current.crash.play().catch(() => { });
+      }
+      onGameOver(score);
+    };
+
+    // Kickoff
+    gameLoopRef.current = requestAnimationFrame(update);
 
     return () => {
-      if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+      cancelAnimationFrame(gameLoopRef.current);
       window.removeEventListener('resize', resize);
-      window.removeEventListener('keydown', handleKeyDown);
-      canvas.removeEventListener('mousemove', handleInput);
-      canvas.removeEventListener('touchstart', handleInput);
-      canvas.removeEventListener('touchmove', handleInput);
+      window.removeEventListener('keydown', handleInput);
+      window.removeEventListener('mousedown', handleInput);
+      window.removeEventListener('touchstart', handleInput);
     };
-  }, [onGameOver]);
-
-  const moveLeft = () => { playerRef.current.targetX -= 120; };
-  const moveRight = () => { playerRef.current.targetX += 120; };
+  }, [onGameOver, score]);
 
   return (
-    <div ref={containerRef} className="fixed inset-0 w-screen h-screen bg-sky-50 overflow-hidden select-none">
-      <canvas ref={canvasRef} className="w-full h-full block cursor-none" />
-
-      {/* IMPROVED MOBILE CONTROLS - Full side buttons */}
-      <div className="absolute inset-0 flex md:hidden pointer-events-none">
-        <div
-          className="flex-1 h-full pointer-events-auto active:bg-pink-500/10 transition-colors flex items-end justify-center pb-20"
-          onMouseDown={moveLeft}
-          onTouchStart={(e) => { e.preventDefault(); moveLeft(); }}
-        >
-          <div className="w-20 h-20 bg-pink-500/90 rounded-2xl flex items-center justify-center text-white shadow-2xl border-4 border-white/50">
-            <ChevronLeft size={40} strokeWidth={4} />
-          </div>
-        </div>
-        <div
-          className="flex-1 h-full pointer-events-auto active:bg-pink-500/10 transition-colors flex items-end justify-center pb-20"
-          onMouseDown={moveRight}
-          onTouchStart={(e) => { e.preventDefault(); moveRight(); }}
-        >
-          <div className="w-20 h-20 bg-pink-500/90 rounded-2xl flex items-center justify-center text-white shadow-2xl border-4 border-white/50">
-            <ChevronRight size={40} strokeWidth={4} />
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute top-24 w-full text-center pointer-events-none">
-        <div className="inline-block bg-white/90 px-6 py-2 rounded-full shadow-lg text-sm font-black text-pink-600 animate-bounce border-2 border-pink-100">
-          চাঁদা দিবো না ! 🏃‍♂️💨
+    <div className="fixed inset-0 w-full h-full bg-sky-100 touch-none overflow-hidden">
+      <canvas ref={canvasRef} className="block w-full h-full" />
+      <div className="absolute top-32 w-full text-center pointer-events-none">
+        <div className="inline-block bg-white/80 backdrop-blur px-6 py-2 rounded-full shadow-lg border-2 border-pink-100 animate-pulse">
+          <span className="text-pink-600 font-black">চাঁদা দিয়ে ওড়ো! 🕊️</span>
         </div>
       </div>
     </div>
