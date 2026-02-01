@@ -1,0 +1,7 @@
+{
+  "name": "চাঁদা লাগবে 😂",
+  "description": "A funny, intentionally unwinnable Bangla game where you must pay 'Chanda' (donation) after losing.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
