@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Users } from 'lucide-react';
 
 const FakeCounter: React.FC = () => {
-  const [count, setCount] = useState(12435);
+  const [count, setCount] = useState(50435);
 
   useEffect(() => {
     const interval = setInterval(() => {

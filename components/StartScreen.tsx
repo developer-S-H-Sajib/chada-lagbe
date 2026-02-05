@@ -21,7 +21,7 @@ const StartScreen: React.FC<StartScreenProps> = ({
 
   // init music once
   useEffect(() => {
-    const audio = new Audio('/chada-deo-music.mp3');
+    const audio = new Audio('/chada-deo-music-1.mp3');
     audio.loop = true;
     audio.volume = 0.6;
     bgMusicRef.current = audio;

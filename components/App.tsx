@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Analytics } from '@vercel/analytics/react';
+
 import { GameState, PlayerData } from '../types';
 import StartScreen from './StartScreen';
 import GameEngine from './GameEngine';
@@ -41,12 +43,8 @@ const App: React.FC = () => {
 
   // ▶️ START GAME
   const startGame = (name: string, photo: string | null) => {
-    // click sound
     playSound('/funny-sound-1.mp3');
-
-    // background music (user gesture safe)
     bgMusicRef.current?.play().catch(() => { });
-
     setPlayerData(prev => ({ ...prev, name, photoUrl: photo }));
     setCurrentState(GameState.PLAYING);
   };
@@ -54,6 +52,7 @@ const App: React.FC = () => {
   // ⛔ GAME OVER
   const endGame = (score: number) => {
     playSound('/funny-sound-2.mp3');
+
     bgMusicRef.current?.pause();
     if (bgMusicRef.current) bgMusicRef.current.currentTime = 0;
 
@@ -136,6 +135,9 @@ const App: React.FC = () => {
           <FakeCounter />
         </footer>
       )}
+
+      {/* ⭐ Vercel Analytics */}
+      <Analytics />
     </div>
   );
 };
