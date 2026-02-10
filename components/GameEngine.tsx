@@ -11,25 +11,43 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
   const gameLoopRef = useRef<number>(0);
   const [score, setScore] = useState(0);
   const playerImgRef = useRef<HTMLImageElement | null>(null);
+  const bgImgRef = useRef<HTMLImageElement | null>(null);
+  const bgXRef = useRef(0);
 
   // Physics Config
-  const GRAVITY = 0.4;
-  const JUMP_STRENGTH = -7.5;
-  const PIPE_SPEED = 3.2;
-  const PIPE_SPAWN_RATE = 110; // frames
+  const GRAVITY = 0.2; // Even floatier
+  const JUMP_STRENGTH = -5.0; // Gentle hop
+  const PIPE_GAP = 260; // Massive gap
   const PIPE_WIDTH = 70;
-  const PIPE_GAP = 190;
+  const COLLISION_RADIUS = 12; // Tiny hitbox for "Very Easy"
+
+  // Difficulty Progression Config
+  const START_SPEED = 2.2; // Very slow start
+  const MAX_SPEED = 3.5;   // Normal speed
+  const RAMP_START_FRAME = 900; // 15 seconds (assuming 60fps)
+  const RAMP_END_FRAME = 2400;  // 40 seconds
+  const PIPE_SPAWN_DISTANCE = 400; // More horizontal space
+
+  // Color Palette for Pipes
+  const PIPE_PALETTE = [
+    { main: '#D12053', cap: '#b01b46' }, // Original Pink
+    { main: '#22c55e', cap: '#15803d' }, // Green
+    { main: '#3b82f6', cap: '#1d4ed8' }, // Blue
+    { main: '#eab308', cap: '#a16207' }, // Yellow
+    { main: '#a855f7', cap: '#7e22ce' }, // Purple
+    { main: '#f97316', cap: '#c2410c' }, // Orange
+  ];
 
   // Game State Refs
   const birdRef = useRef({
     y: 300,
     vy: 0,
-    radius: 24,
+    radius: 16, // Visual radius (smaller)
     rotation: 0,
     x: 0 // Will be set in resize
   });
 
-  const pipesRef = useRef<{ x: number; top: number; passed: boolean }[]>([]);
+  const pipesRef = useRef<{ x: number; top: number; passed: boolean; color: string; capColor: string }[]>([]);
   const frameCount = useRef(0);
   const soundsRef = useRef<{ flap: HTMLAudioElement; point: HTMLAudioElement; crash: HTMLAudioElement } | null>(null);
 
@@ -46,6 +64,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
       img.src = playerPhoto;
       img.onload = () => { playerImgRef.current = img; };
     }
+
+    // Load Background Image
+    const bgImg = new Image();
+    bgImg.src = '/sky_background.png';
+    bgImg.onload = () => { bgImgRef.current = bgImg; };
+
   }, [playerPhoto]);
 
   useEffect(() => {
@@ -90,28 +114,66 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
       frameCount.current++;
       const bird = birdRef.current;
 
+      // Calculate Current Speed based on progression
+      let currentSpeed = START_SPEED;
+      if (frameCount.current > RAMP_START_FRAME) {
+        if (frameCount.current >= RAMP_END_FRAME) {
+          currentSpeed = MAX_SPEED;
+        } else {
+          const progress = (frameCount.current - RAMP_START_FRAME) / (RAMP_END_FRAME - RAMP_START_FRAME);
+          currentSpeed = START_SPEED + (MAX_SPEED - START_SPEED) * progress;
+        }
+      }
+
+      // Update Background Scroll (Parallax: slower than foreground)
+      bgXRef.current -= currentSpeed * 0.5;
+      // Reset background scroll if it moves too far (assuming repeatable or handled in draw)
+
       // Bird Physics
       bird.vy += GRAVITY;
       bird.y += bird.vy;
       bird.rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, bird.vy * 0.1));
 
-      // Floor/Ceiling Collision
+      // Floor/Ceiling Collision (Keep visual radius for floor check)
       if (bird.y + bird.radius > canvas.height || bird.y - bird.radius < 0) {
         handleGameOver();
         return;
       }
 
-      // Pipe Management
-      if (frameCount.current % PIPE_SPAWN_RATE === 0) {
+      // Pipe Management (Distance Based Spawning)
+      const lastPipe = pipesRef.current[pipesRef.current.length - 1];
+      let shouldSpawn = false;
+
+      if (!lastPipe) {
+        // Initial spawn delay
+        if (frameCount.current > 100) shouldSpawn = true;
+      } else {
+        // Spawn if enough distance has passed
+        if (canvas.width - lastPipe.x >= PIPE_SPAWN_DISTANCE) {
+          shouldSpawn = true;
+        }
+      }
+
+      if (shouldSpawn) {
         const minHeight = 60;
         const maxHeight = canvas.height - PIPE_GAP - minHeight;
         const top = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
-        pipesRef.current.push({ x: canvas.width, top, passed: false });
+
+        // Random Color
+        const colorPair = PIPE_PALETTE[Math.floor(Math.random() * PIPE_PALETTE.length)];
+
+        pipesRef.current.push({
+          x: canvas.width,
+          top,
+          passed: false,
+          color: colorPair.main,
+          capColor: colorPair.cap
+        });
       }
 
       for (let i = pipesRef.current.length - 1; i >= 0; i--) {
         const p = pipesRef.current[i];
-        p.x -= PIPE_SPEED;
+        p.x -= currentSpeed;
 
         // Scoring
         if (!p.passed && p.x + PIPE_WIDTH < bird.x) {
@@ -121,18 +183,19 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
         }
 
         // Collision detection (Circle-Rect)
+        // Use COLLISION_RADIUS instead of bird.radius for "Coyote Time" / Forgiveness
         const birdX = bird.x;
         const birdY = bird.y;
 
         // Rect 1 (Top Pipe)
-        const inTopRect = birdX + bird.radius > p.x &&
-          birdX - bird.radius < p.x + PIPE_WIDTH &&
-          birdY - bird.radius < p.top;
+        const inTopRect = birdX + COLLISION_RADIUS > p.x &&
+          birdX - COLLISION_RADIUS < p.x + PIPE_WIDTH &&
+          birdY - COLLISION_RADIUS < p.top;
 
         // Rect 2 (Bottom Pipe)
-        const inBottomRect = birdX + bird.radius > p.x &&
-          birdX - bird.radius < p.x + PIPE_WIDTH &&
-          birdY + bird.radius > p.top + PIPE_GAP;
+        const inBottomRect = birdX + COLLISION_RADIUS > p.x &&
+          birdX - COLLISION_RADIUS < p.x + PIPE_WIDTH &&
+          birdY + COLLISION_RADIUS > p.top + PIPE_GAP;
 
         if (inTopRect || inBottomRect) {
           handleGameOver();
@@ -152,26 +215,34 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
     const draw = () => {
       const bird = birdRef.current;
 
-      // Clear Screen
-      ctx.fillStyle = '#bae6fd'; // Sky Blue
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Draw Background
+      if (bgImgRef.current) {
+        const img = bgImgRef.current;
+        // Scale height to fit canvas, maintain aspect ratio or cover
+        // Strategy: Cover height, repeat width
+        const scale = canvas.height / img.height;
+        const scaledWidth = img.width * scale;
 
-      // Clouds
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      const drawCloud = (x: number, y: number, s: number) => {
-        ctx.beginPath();
-        ctx.arc(x, y, 30 * s, 0, Math.PI * 2);
-        ctx.arc(x + 40 * s, y, 40 * s, 0, Math.PI * 2);
-        ctx.arc(x + 80 * s, y, 30 * s, 0, Math.PI * 2);
-        ctx.fill();
-      };
-      drawCloud(100, 150, 1);
-      drawCloud(canvas.width - 250, 100, 1.2);
-      drawCloud(canvas.width / 2, 250, 0.8);
+        // Wrap logic
+        const totalWidth = scaledWidth;
+        let currentX = bgXRef.current % totalWidth;
+        if (currentX > 0) currentX -= totalWidth;
+
+        // Draw multiple times to fill screen
+        while (currentX < canvas.width) {
+          ctx.drawImage(img, currentX, 0, scaledWidth, canvas.height);
+          currentX += scaledWidth;
+        }
+      } else {
+        // Fallback or Loading
+        ctx.fillStyle = '#bae6fd';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       // Pipes
+      // Pipes
       pipesRef.current.forEach(p => {
-        ctx.fillStyle = '#D12053'; // bKash Pink
+        ctx.fillStyle = p.color || '#D12053'; // Use random color
 
         // Top Pipe
         ctx.fillRect(p.x, 0, PIPE_WIDTH, p.top);
@@ -179,7 +250,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onGameOver, playerPhoto }) => {
         ctx.fillRect(p.x, p.top + PIPE_GAP, PIPE_WIDTH, canvas.height - (p.top + PIPE_GAP));
 
         // Pipe Caps
-        ctx.fillStyle = '#b01b46';
+        ctx.fillStyle = p.capColor || '#b01b46';
         ctx.fillRect(p.x - 5, p.top - 20, PIPE_WIDTH + 10, 20);
         ctx.fillRect(p.x - 5, p.top + PIPE_GAP, PIPE_WIDTH + 10, 20);
 
